@@ -4,7 +4,7 @@
   <ModulePrefs title="恋チュンカウンター"
              description="恋チュンカウンター ガジェットです。スプレッドシートのスクリプトで取得した件数を表示します。ガジェットの設定でレイアウト変更可能。表示をtableタグで制御。"
              author="NJC クラウドシステムグループ"
-             author_affiliation="日本事務器株式会社">
+             author_affiliation="◯◯株式会社">
     <Require feature="dynamic-height"/>
   </ModulePrefs>
   <UserPref name="_table_query_url"

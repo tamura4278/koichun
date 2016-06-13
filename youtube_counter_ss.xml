@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 恋チュンカウンター　試作No.5 --> 
+<Module>
+  <ModulePrefs title="恋チュンカウンター"
+             description="恋チュンカウンター ガジェットです。スプレッドシートのスクリプトで取得した件数を表示します。ガジェットの設定でレイアウト変更可能。表示をtableタグで制御。"
+             author="NJC クラウドシステムグループ"
+             author_affiliation="システム開発部">
+    <Require feature="dynamic-height"/>
+  </ModulePrefs>
+  <UserPref name="_table_query_url"
+          display_name="参照元スプレッドシートのURL"
+          required="true"
+          default_value="https://docs.google.com/spreadsheets/d/13fomMUnxnK-AkkmoqAVR29Kppu8IGQ9wH4I26ghRelU/edit#gid=0"/>
+
+  <UserPref name="_table_query_refresh_interval"
+          display_name="更新間隔（分）" 
+          default_value="3600"
+          datatype="enum"
+          required="false">
+    <EnumValue value="0" display_value="更新しない"/>
+    <EnumValue value="60" display_value="1分"/>
+    <EnumValue value="300" display_value="5分"/>
+    <EnumValue value="600" display_value="10分"/>
+    <EnumValue value="1800" display_value="30分"/>
+    <EnumValue value="3600" display_value="60分"/>
+  </UserPref>
+
+  <UserPref name="count01"
+          display_name="現在再生回数表示"
+          default_value="true"
+          datatype="bool"
+          required="false"/> 
+
+  <UserPref name="count02"
+          display_name="目標再生回数表示"
+          default_value="true"
+          datatype="bool"
+          required="false"/> 
+
+  <UserPref name="count03"
+          display_name="昨日からの再生回数表示"
+          default_value="true"
+          datatype="bool"
+          required="false"/> 
+
+  <UserPref name="layout"
+          display_name="レイアウト" 
+          default_value="0"
+          datatype="enum"
+          required="false">
+    <EnumValue value="0" display_value="縦長用"/>
+    <EnumValue value="1" display_value="横長用"/>
+  </UserPref>
+
+  <Content type="html">
+  <![CDATA[
+
+    <!-- Google AJAX APIを呼び出す。-->
+    <script src="https://www.google.com/jsapi" type="text/javascript"></script>
+
+    <!-- 結果を表示するための HTML 領域 (この場合は DIV タグ) を定義します。-->
+    <div id="tablediv" style="text-align:center">
+      <img src="https://gadget01.googlecode.com/svn/trunk/50_material/01_indicator/throbber.gif" />
+    </div>
+
+    <script type="text/javascript" charset="UTF-8" >
+
+      /*---------------------------------------------------*
+       * すべての API を順に読み込み、APIが読み込まれたら
+       * 実行する関数名 ("sendQuery") を指定します。
+       *---------------------------------------------------*/
+       var gadgetHelper = null;
+       var gadgetCnt01 = null;
+       var gadgetCnt02 = null;
+       var gadgetCnt03 = null;
+       var gadgetLayout = null;
+
+       /* ガジェットを読み込んだ後に最初に起動するクラスを設定。 */
+       gadgets.util.registerOnLoadHandler(loadVisualizationAPI);
+
+       function loadVisualizationAPI() { 
+         /* Google visualization APIを読み込む。 */
+         google.load("visualization", "1");
+         /* 上記のloadでの読み込み完了を待って、sendQueryクラスを呼び出す。 */
+         google.setOnLoadCallback(sendQuery);
+       }
+
+       /*---------------------------------------------------*
+        * クエリを作成し (ガジェットのユーザー設定で指定)、それをスプレッドシートのデータ 
+        * ソースに送信します。 また、スプレッドシート データが取得されたら実行する関数名 
+        * ("handleQueryResponse") を指定します。
+        *---------------------------------------------------*/
+       function sendQuery() {
+         /* ガジェットのUser preferences。「__MODULE_ID__」は、このガジェット実行時に識別子に変換される。 */
+         var prefs = new _IG_Prefs(__MODULE_ID__); 
+         gadgetHelper = new google.visualization.GadgetHelper();
+         gadgetCnt01 = prefs.getBool("count01");
+         gadgetCnt02 = prefs.getBool("count02");
+         gadgetCnt03 = prefs.getBool("count03");
+         gadgetLayout = prefs.getString("layout");
+
+         var query = gadgetHelper.createQueryFromPrefs(prefs);
+         query.send(handleQueryResponse);
+       } 
+
+       /*---------------------------------------------------*
+        * 中核となるロジックです。 必要に応じてスプレッドシートデータを処理します。 
+        * ここでは、ユーザーに表示する HTML を作成します。
+        * 埋め込みのコメントを使用して、各手順の説明を提供しています。
+        *---------------------------------------------------*/
+       function handleQueryResponse(response) {
+
+         /* visualization GadgetHelper クラスを使用してエラーを処理します。 */
+         if (!gadgetHelper.validateResponse(response)) {
+           return;
+         }
+
+         /* 重要: スプレッドシートからデータを取得します。 */
+         var cnt  = response.getDataTable().getFormattedValue(0, 1);
+         var val1 = response.getDataTable().getFormattedValue(2, 1);
+         var val2 = response.getDataTable().getFormattedValue(3, 1);
+         var val3 = response.getDataTable().getFormattedValue(4, 1);
+         var val4 = response.getDataTable().getFormattedValue(5, 1);
+         var val5 = response.getDataTable().getFormattedValue(6, 1);
+         var cnt_pls = response.getDataTable().getFormattedValue(7, 1);
+
+         /* 取得値を数値に変換して、表示用のデータを生成する。 */
+         var num = parseInt(cnt);
+         var num_pls = parseInt(cnt_pls);
+         var goal;
+         var diff;
+         var today_cnt;
+         var fin = "congratulations";
+
+         /* 再生回数に応じて、目標再生回数を設定する。 */
+         if ( 0 <= num && num < val1 ) {
+           goal = val1;
+         }
+         else if ( val1 <= num && num < val2 ) {
+           goal = val2;
+         }
+         else if ( val2 <= num && num < val3 ) {
+           goal = val3;
+         }
+         else if ( val3 <= num && num < val4 ) {
+           goal = val4;
+         }
+         else if ( val4 <= num && num < val5 ) {
+           goal = val5;
+         }
+         else {
+           goal = "end";
+         }
+
+         /* ガジェット内に表示するHTMLレイアウト情報。 */
+         var html = []; 
+
+         html.push('<table border="0" width="100%" style="margin: 10px 0px 0px 0px;">');
+
+         /* 現在再生回数 */
+         if(gadgetCnt01){
+
+           /* 本文 */
+           html.push('<tr align="center"><td>');
+           html.push('<span class="small">現在の再生回数</span><br>');
+           html.push('<span class="big">' + cnt + '回</span>');
+
+           /* レイアウト別のタグ 終了 */
+           if(gadgetLayout=="0"){
+             html.push('<br><br>');
+             html.push('</td></tr>');
+           }
+           else{
+             html.push('</td>');
+           }
+
+         }
+
+         /* 目標再生回数 */
+         if(gadgetCnt02){
+           if(goal =="end"){
+
+             /* レイアウト別のタグ 開始 */
+             if(gadgetLayout=="0"){
+               html.push('<tr align="center"><td>');
+             }
+             else{
+               html.push('<td>');
+             }
+
+             /* 本文 */
+             html.push(fin);
+
+             /* レイアウト別のタグ 終了 -*/
+             if(gadgetLayout=="0"){
+               html.push('<br><br>');
+               html.push('</td></tr>');
+             }
+             else{
+               html.push('</td>');
+             }
+           }
+           else{
+
+             /* レイアウト別のタグ 開始 */
+             if(gadgetLayout=="0"){
+               html.push('<tr align="center"><td>');
+             }
+             else{
+               html.push('<td align="center">');
+             }
+
+             /* 本文 */
+             diff = goal - num;
+             html.push('<span class="small">' + goal + '回再生まで</span><br>');
+             html.push('<span class="big">' + diff + '回</span>');
+
+             /* レイアウト別のタグ 終了 */
+             if(gadgetLayout=="0"){
+               html.push('<br><br>');
+               html.push('</td></tr>');
+             }
+             else{
+               html.push('</td>');
+             }
+
+           }
+         }
+
+         /* 昨日からの再生回数 */
+         today_cnt = num - num_pls;
+         if(gadgetCnt03){
+
+           /* レイアウト別のタグ 開始 */
+           if(gadgetLayout=="0"){
+             html.push('<tr align="center"><td>');
+           }
+           else{
+             html.push('<td align="center">');
+           }
+
+           /* 本文 */
+           html.push('<span class="small">昨日からプラス</span><br>');
+           html.push('<span class="big">' + today_cnt + '回</span>');
+           html.push('</div>');
+
+           /* レイアウト別のタグ 終了 */
+           if(gadgetLayout=="0"){
+             html.push('<br><br>');
+             html.push('</td></tr>');
+           }
+           else{
+             html.push('</td></tr>');
+           }
+
+         }
+
+         html.push('</table>');
+
+         html.push('<table width="100%">');
+         html.push('<tr align="center"><td>');
+         html.push('<span class="small"><a href="https://www.youtube.com/watch?v=VyEyQ5STJqI" target="_blank">動画を見る</a></span>');
+         html.push('</td></tr>');
+         html.push('</table>');
+         html.push('<br>');
+
+         /* 生成された html をコンテナ div 内に設定します。 */
+         var tableDiv = _gel('tablediv');
+         tableDiv.innerHTML = html.join('');
+         tableDiv.style.width = "100%";
+         tableDiv.style.height = "100%";
+       }
+
+      /* dynamic-heightというAPIを利用して、ガジェットの高さを動的に変更する。 */
+      //_IG_AdjustIFrameHeight();
+    </script>
+
+    <style type="text/css">
+      body {
+        background-color: #D7EEFF;
+        color: #A9A9A9;
+        text-align: center;
+        width: 100%;
+      }
+
+      span.big{
+        font-size: 36px;
+      }
+
+      span.small{
+        font-size: 12px;
+      }
+    </style>
+
+  ]]>
+  </Content>
+</Module>
